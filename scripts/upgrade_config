@@ -1,0 +1,52 @@
+#!/bin/bash
+
+BINDIR=$(cd $(dirname $0) && pwd)
+
+. ${BINDIR}/common
+
+if [ "$1" != "-notee" ]; then
+    teeOutput
+fi
+
+ln -f -s "${MEDIADIR}/config/.htaccess" "${FPPDIR}/www/.htaccess"
+ln -f -s "${MEDIADIR}/config/proxies" "${FPPDIR}/www/proxy/.htaccess"
+
+echo "Checking config version"
+export FPPVERSION
+
+########################################################################
+
+if [ -f ${CFGVERSIONFILE} ]; then
+	CFGVERSION=$(cat ${CFGVERSIONFILE})
+else
+    CFGVERSION="99999"
+fi
+
+echo "FPP Version: ${FPPVERSION}"
+echo "Config Version: ${CFGVERSION}"
+
+for VERSION in $(seq 1 1000)
+do
+	if [ ${VERSION} -gt ${CFGVERSION} ]
+	then
+		if [ -f "${UPGRADEDIR}/${VERSION}/upgrade.sh" ]
+		then
+			echo "Upgrading config to version ${VERSION}"
+			(cd ${UPGRADEDIR}/${VERSION} && ./upgrade.sh)
+			if [ $? -eq 0 ]
+			then
+                CFGVERSION=${VERSION}
+                echo ${VERSION} > ${CFGVERSIONFILE}
+                echo ">>SUCCESS upgraded to config version ${VERSION}"
+			else
+                echo ">>FAILED to update to config version ${VERSION}"
+                echo "!!Config Version not up to date!!"
+                exit 0
+			fi
+		else
+			echo "Up to date at config version ${CFGVERSION}"
+			exit 0
+		fi
+	fi
+done
+

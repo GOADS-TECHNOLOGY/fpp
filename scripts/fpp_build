@@ -1,0 +1,14 @@
+#!/bin/bash
+
+BINDIR=$(cd $(dirname $0) && pwd)
+
+. ${BINDIR}/common
+. ${BINDIR}/functions
+
+cd ${FPPDIR}/src/
+
+make clean
+CPUS=$(ComputeMakeParallelism)
+
+make -j ${CPUS} optimized
+

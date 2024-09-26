@@ -1,0 +1,12 @@
+[Match]
+Type=ether
+
+[Link]
+RequiredForOnline=no
+
+[Network]
+DHCP=ipv4
+LinkLocalAddressing=fallback
+
+[DHCPv4]
+ClientIdentifier=mac

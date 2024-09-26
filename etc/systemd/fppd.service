@@ -1,0 +1,20 @@
+[Unit]
+Description=FPPd
+After=fpp_postnetwork.service
+Requires=fpp_postnetwork.service
+DefaultDependencies=no
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/opt/fpp/src/fppd -f
+ExecStop=/opt/fpp/scripts/fppd_stop
+ExecStartPre=-/opt/fpp/src/fppinit bootPre
+ExecStartPost=-/opt/fpp/src/fppinit bootPost
+ExecReload=/opt/fpp/src/fpp -r
+Restart=always
+
+
+[Install]
+WantedBy=multi-user.target

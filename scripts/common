@@ -1,0 +1,210 @@
+#!/bin/bash
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin:${PATH}
+
+if [ "x$0" = "x-bash" ]
+then
+    COMMON_PATH="/opt/fpp/scripts"
+else
+    COMMON_PATH=$(dirname "$0")            # relative
+fi
+
+COMMON_PATH=$(cd "$COMMON_PATH/.." && pwd)
+
+FPPDIR=${FPPDIR:-$COMMON_PATH}
+FPPUSER="fpp"
+FPPGROUP="fpp"
+
+if [ -f "${FPPDIR}/www/media_root.txt" ]; then
+    MEDIADIR=$(cat "${FPPDIR}/www/media_root.txt")
+    FPPHOME=$(dirname ${MEDIADIR})
+else
+    FPPHOME="/home/fpp"
+    MEDIADIR="${MEDIADIR:-${FPPHOME}/media}"
+fi
+
+if [ -f /etc/fpp/platform ]; then
+    FPPPLATFORM=$(cat /etc/fpp/platform 2> /dev/null)
+else
+    FPPPLATFORM=$(uname -s)
+    if [ "${FPPPLATFORM}" = "Darwin" ]; then
+        FPPPLATFORM="MacOS"
+        FPPUSER=$(whoami)
+        FPPGROUP="staff"
+    fi
+fi
+FPPBINDIR="${FPPDIR}/src"
+if [ "x${FPPPLATFORM}" = "xBeagleBone Black" ]; then
+    BBBMODEL=$(cut -d' ' -f3- /proc/device-tree/model | tr '\0' '\n')
+    export BBBMODEL
+fi
+
+FPPBOOTDIR="/boot"
+if [ -d "/boot/firmware" ]
+then
+    FPPBOOTDIR="/boot/firmware"
+fi
+
+PATHDIRS="${FPPDIR}/scripts/:${FPPBINDIR}/"
+if [ -f "${FPPDIR}/src/fppd" -a "${FPPDIR}/src/fppd" -nt "${FPPBINDIR}/fppd" ]; then
+	FPPBINDIR="${FPPDIR}/src"
+	PATHDIRS="${FPPDIR}/scripts/:${FPPDIR}/src/"
+fi
+FPP="${FPPBINDIR}/fpp"
+FPPD="${FPPBINDIR}/fppd"
+
+export FPPDIR
+export FPPBINDIR
+export FPPBOOTDIR
+export FPPHOME
+export FPPUSER
+export FPPGROUP
+export FPPPLATFORM
+export PATH=${PATHDIRS}:${PATH}
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${FPPDIR}/external/RF24:${FPPDIR}/lib:${FPPDIR}/src
+
+SUDO=${SUDO:-sudo -E}
+export SRCDIR="${FPPDIR}/src"
+SCRIPTDIR="${FPPDIR}/scripts"
+BINDIR="${FPPDIR}/scripts"
+UPGRADEDIR="${FPPDIR}/upgrade"
+LOGDIR="${MEDIADIR}/logs"
+CFGDIR="${MEDIADIR}/config"
+CFGFILE="${CFGFILE:-${MEDIADIR}/settings}"
+PLUGINDIR="${PLUGINDIR:-${MEDIADIR}/plugins}"
+SETTINGSFILE="${SETTINGSFILE:-${MEDIADIR}/settings}"
+
+
+if [ "${FPPPLATFORM}" != "MacOS" ]; then
+    FPPVERSIONFILE="${FPPVERSIONFILE:-/etc/fpp/rfs_version}"
+    FPPVERSION="${FPPVERSION:-0}"
+    [ -f $FPPVERSIONFILE ] && FPPVERSION="$(cat ${FPPVERSIONFILE} | sed -e "s/[^0-9]//g")"
+    CFGVERSIONFILE="${CFGVERSIONFILE:-/etc/fpp/config_version}"
+    CFGVERSION="${CFGVERSION:-0}"
+    [ -f $CFGVERSIONFILE ] && CFGVERSION="$(cat ${CFGVERSIONFILE})"
+
+    . /etc/os-release
+    OSID=${ID}
+    OSVER="${ID}_${VERSION_ID}"
+    if [ "x${OSID}" = "xraspbian" ]; then
+        OSVER="debian_${VERSION_ID}"
+    fi
+else
+    SOURCE_VERSION=$(cd ${FPPDIR} ; git describe --dirty || git describe ${FPPDIR} || echo Unknown)
+    MAJOR_VERSION=$(echo ${SOURCE_VERSION} | cut -f1 -d\.)
+    MINOR_VERSION=$(echo ${SOURCE_VERSION} | cut -f1 -d- | cut -f2 -d\.)
+    if [ "$MINOR_VERSION" = "x" ]; then
+        MINOR_VERSION=0
+    fi
+
+    FPPVERSION=${MAJOR_VERSION}${MINOR_VERSION}
+    CFGVERSION="999999"
+    CFGVERSIONFILE="${CFGVERSIONFILE:-/etc/fpp/config_version}"
+    SUDO=""
+    export CFGVERSION
+fi
+export FPPVERSION
+
+#############################################################################
+makeLogDir() {
+	if [ ! -d ${LOGDIR} ]
+	then
+		mkdir -p ${LOGDIR}
+		chown ${FPPUSER}:${FPPGROUP} ${LOGDIR}
+		chmod 775 ${LOGDIR}
+	fi
+}
+
+logOutput() {
+	MYTTY=$(tty)
+	if [ "x${MYTTY}" = "x/dev/console" -o "x${MYTTY}" = "x" -o "x${MYTTY}" = "xnot a tty" ]
+	then
+		makeLogDir
+
+		FILE=$(basename $0)
+		exec >> ${LOGDIR}/${FILE}.log 2>&1
+		echo "=========================================================================="
+		date
+	fi
+}
+
+teeOutput() {
+	MYTTY=$(tty)
+	if [ "x${MYTTY}" = "x/dev/console" -o "x${MYTTY}" = "x" -o "x${MYTTY}" = "xnot a tty" ]
+	then
+		makeLogDir
+
+		FILE=$(basename $0)
+		echo "==========================================================================" >> ${LOGDIR}/${FILE}.log
+		date >> ${LOGDIR}/${FILE}.log
+		exec > >(tee -a ${LOGDIR}/${FILE}.log)
+		exec 2>&1
+	fi
+}
+
+getSetting() {
+    SETTING=$1
+    if [ -f "${CFGFILE}" ]; then
+        if [ -f "/usr/bin/flock" ]; then
+            exec {FD}<$CFGFILE
+            flock -n ${FD} || exit 1
+            grep -i --binary-files=text "^${SETTING}\s*=.*" ${CFGFILE} | sed -E -e "s/^${SETTING}\s*=\s*(.*)/\1/" -e 's/"//g'
+            flock -u ${FD}
+        else
+            grep -i --binary-files=text "^${SETTING}\s*=.*" ${CFGFILE} | sed -E -e "s/^${SETTING}\s*=\s*(.*)/\1/" -e 's/"//g'
+        fi
+    fi
+}
+
+getSettingLocked() {
+    SETTING=$1
+    grep -i --binary-files=text "^${SETTING}\s*=.*" ${CFGFILE} | sed -e "s/.*=\s*//" -e 's/"//g'
+}
+
+# getSettingInfo SETTING_NAME ATTRIBUTE_NAME
+# getSettingInfo MQTTPort restart
+# Returns empty string if attribute is not set
+getSettingInfo() {
+    SETTING=$1
+    ATTR=$2
+
+    cat $FPPDIR/www/settings.json | python -c "import sys,json; data = json.load(sys.stdin); print(data['settings']['${SETTING}']['${ATTR}'] if (('settings' in data) and ('${SETTING}' in data['settings']) and ('${ATTR}' in data['settings']['${SETTING}'])) else data['attributes']['${ATTR}'] if ('${ATTR}' in data['attributes']) else '');"
+}
+
+setSetting() {
+    SETTING=$1
+    VALUE=$2
+    
+    if [ -f "${CFGFILE}" ]; then
+        if [ -f "/usr/bin/flock" ]; then
+            exec {FD}<$CFGFILE
+            flock -n ${FD} || exit 1
+        fi
+        OLD=$(getSettingLocked $SETTING)
+        if [ "x${OLD}" != "x" ]; then
+            if [ "${FPPPLATFORM}" == "MacOS" ]; then
+                sed -i '' -e "/^${SETTING} *= */d" ${CFGFILE}
+            else
+                sed -i -e "/^${SETTING} *= */d" ${CFGFILE}
+            fi
+        fi
+        echo "${SETTING} = \"${VALUE}\"" >> ${CFGFILE}
+        if [ "${FPPPLATFORM}" != "MacOS" ]; then
+            sed -i 's/\x0//g' ${CFGFILE}
+        fi
+        if [ -f "/usr/bin/flock" ]; then
+            flock -u ${FD}
+        fi
+    fi
+}
+
+###################################################################
+# Handle calling a function directly
+#
+# Example: /opt/fpp/scripts/common setSetting Key Value
+BASENAME=$(basename -- $0)
+if [ "${BASENAME}" = "common" -a -n "$1" ]
+then
+    $@
+fi
+

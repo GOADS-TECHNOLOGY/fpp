@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/src/**",
+                "/usr/include/c++/12",
+                "/usr/include/arm-linux-gnueabihf/c++/12",
+                "/usr/include/libdrm"
+            ],
+            "defines": [
+                "PLATFORM_BBB",
+                "PLATFORM_PI"
+            ],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++20",
+            "intelliSenseMode": "linux-gcc-arm"
+        }
+    ],
+    "version": 4
+}

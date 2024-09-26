@@ -1,0 +1,159 @@
+=============================================================================
+Instructions for creating a new FPP SD image package for the Raspberry Pi
+=============================================================================
+
+Install the latest Raspbian Bullseye Lite image to the SD card.  The last
+version tested 2024-03-12-raspios-bookworm-armhf-lite.img.xz
+
+Resize the root partition to 3.5GB using fdisk (substitute the proper device
+for your SD card).
+
+    fdisk /dev/sdc
+    p
+	(Note the original start block of partition 2, you will need this later)
+    d
+    2
+    n
+    p
+    2
+	(Replace 1056768 with the original start block of partition 2 noted earlier)
+    1056768
+	(FIXME, downsize this value once install is tested)
+    +6000M
+    N
+    p
+    w
+
+FSCK and resize the root partition (again, use your device name.
+
+    e2fsck -f /dev/sdc2
+    resize2fs /dev/sdc2
+
+Disable the auto partition resize script on the SD and enable the SSH server while
+we have the partition mounted:
+
+	# Make a temp mount location
+	mkdir -f /mnt/tmp
+	# Mount the boot partition
+	mount /dev/sdc1 /mnt/tmp
+	# Backup the cmdline.txt file
+	cp /mnt/tmp/cmdline.txt /mnt/tmp/cmdline.org
+	# Disable the auto-resize of the root partition
+	sed -i -e "s# init=/usr/lib/raspberrypi-sys-mods/firstboot##" /mnt/tmp/cmdline.txt
+    # Force 32bit kernel or VLC and libhttpserver will compile for 64bit and not be usable
+    echo "" >> /mnt/tmp/config.txt
+    echo "[all]" >> /mnt/tmp/config.txt
+    echo "# Use 32bit kernel instead of 64bit so external wifi drivers will load" >> /mnt/tmp/config.txt
+    echo "arm_64bit=0" >> /mnt/tmp/config.txt
+    echo "" >> /mnt/tmp/config.txt
+ 
+	# Enable ssh by default
+	touch /mnt/tmp/ssh
+    # Add pi user, will be replaced with FPP user as part of FPP_Install.sh
+    # Issue is parts of FPP expect fpp user to be uid/gid 500/500 but
+    # raspian creates the user with 1000/1000 so letting FPP_Install create the FPP user
+    # makes sure the ids are correct
+    echo 'pi:$6$dRNoTVXaaNzLaRIx$3179MQCluSIlnJB/MvBsqLPKjj8nyZgk6F/eDCO4dhadHemapoawGN6uV2/p5JTb7jfo/Jq7yppJs1x3veUj5.' > /mnt/tmp/userconf
+	# Unmount the file system
+	umount /mnt/tmp
+    # make sure the labels are set
+    dosfslabel /dev/sdc1 boot
+    e2label /dev/sdc2 rootfs
+	# Sync the changes so it's safe to remove the SD card
+	sync
+
+Remove the SD card and boot it up in a Pi4 (preferred) or 3B+ (not Pi5).
+
+
+Do a system upgrade to make sure everything is at the latest versions
+    sudo apt-get update
+    sudo apt-get upgrade
+    sudo apt-get clean
+    sudo localectl set-locale LANG="en_US.UTF-8"
+
+
+
+# For debian 12, we'd like to move to kernel 6.6+ and drop compiled wifi drivers, this still
+# needs some work to figure out and LOTS more testing
+PRUNE_MODULES=1 WANT_PI5=1 rpi-update
+KV=$(uname -r)
+KV=${KV::-3}
+rm -f /boot/*-${KV}*
+rm -rf /lib/modules/${KV}*
+rm -rf /usr/lib/linux-image-${KV}*
+# remove the 16K page kernel as some of the libraries are incompatible with it
+rm -rf /boot/firmware/kernel_2712.img
+
+
+Reboot again to pick up the latest kernel that may have been installed with the dist-upgrade
+
+
+On the Pi, run the FPP installer:
+	wget -O ./FPP_Install.sh https://raw.githubusercontent.com/FalconChristmas/fpp/master/SD/FPP_Install.sh
+	chmod 700 ./FPP_Install.sh
+	sudo ./FPP_Install.sh --img
+
+This will install FPP and perform all required changes to the root filesystem
+and add the FPP user, install required packages, etc.
+
+If you are installing for your own use, you can reboot the Pi and FPP should start
+up.
+
+	su - fpp
+	sudo shutdown -r now
+
+If you are installing to create a SD image zip, do the following:
+    apt-get remove -y --purge --autoremove raspberrypi-kernel-headers
+    apt-get clean
+
+	# Reboot to make sure things take
+	sudo shutdown -r now
+
+	Once the Pi reboots, login as the new fpp user and check to make sure everything
+    is up and running and working properly
+
+	# Shutdown the Pi
+	sudo shutdown -h now
+
+Put the SD card back in a Linux system and run the following (substitute
+the proper device name for your SD card in place of '/dev/sdg'):
+
+	NOTE: The 3800 on the "BLOCK=" line below must be at least the new size of the
+	      second partition created at the top of this document using fdisk.
+    NOTE: the linux system needs to have zerofree and squashfs-tools installed
+       apt-get install zerofree squashfs-tools
+
+    DEVICE=/dev/sdc
+    VERSION=8.0-alpha5
+    OSVERSION=2024-06
+    BLOCKS=6800
+    mount "${DEVICE}2" /mnt
+    rm -rf /mnt/usr/src/linux-headers-*
+    rm -rf /mnt/home/pi
+    rm -f /mnt/home/fpp/.bash_history
+    rm -f /mnt/home/fpp/media/settings
+    rm -rf /mnt/home/fpp/media/config/backups/*
+    rm -f /mnt/home/fpp/media/config/*
+    rm -f /mnt/home/fpp/media/logs/*
+    rm -f /mnt/var/log/*
+    rm -f /mnt/etc/ssh/*key*
+    rm -f /mnt/root/.bash_history
+    umount /mnt
+    zerofree -v "${DEVICE}2"
+	time dd if=${DEVICE} of=FPP-v${VERSION}-Pi.img bs=1M count=${BLOCKS}
+	time zip -9 FPP-v$VERSION-Pi.img.zip FPP-v${VERSION}-Pi.img
+
+This will create a file called FPP-${VERSION}-Pi.img.zip that can be distributed
+for testing/release.
+
+
+# To create the squashfs image needed for OS updates
+# On a separate Linux box:  (this will take a LOOOONG time)
+mount ${DEVICE}2 /mnt
+mount ${DEVICE}1 /mnt/boot/firmware
+mksquashfs /mnt Pi-${VERSION}_${OSVERSION}.fppos -b 512K -comp xz
+cd /mnt/root
+tar -czf ~/ccache-Pi-2024.x-v${VERSION}.tar.gz .ccache
+cd ~
+umount /mnt/boot/firmware
+umount /mnt
