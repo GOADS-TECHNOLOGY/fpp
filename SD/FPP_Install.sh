@@ -942,7 +942,7 @@ if $clone_fpp; then
     fi
 
     echo "FPP - Cloning git repository into /opt/fpp"
-    git clone https://github.com/GOADS-TECHNOLOGY/fpp fpp
+    git clone https://github.com/GOADS-TECHNOLOGY/gofpp fpp
     cd fpp
     git config pull.rebase true
 fi

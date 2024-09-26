@@ -1,19 +1,13 @@
-# FPP - Falcon Player
+# GOFPP - GOADS Falcon Player
 
-The Falcon Player (FPP) is a lightweight, optimized, feature-rich sequence player designed to
-run on low-cost Single Board Computers (SBC). It was originally created to run on the $35
-Raspberry Pi, hence the middle 'P' in the short name but now the FPP supports many more
-systems. It is still mostly commonly used on a Raspberry Pi (Zero, 2, 3, 4, 5) or a Beagle Bone (Black, Green, Pocket).
-The FPP shorthand is still used but it is now just called Falcon Player.
+Dự án **GOFPP - GOADS Falcon Player** được phát triển dựa trên **Falcon Player** (FPP), một phần mềm mã nguồn mở phổ biến để điều khiển các màn hình và hệ thống ánh sáng thông minh. Dự án này có mục tiêu mở rộng khả năng của Falcon Player để phát triển các **màn hình thông minh**, tức là các thiết bị hiển thị có khả năng tương tác hoặc tự động hóa thông qua việc điều khiển nội dung phát sóng.
 
-FPP aims to be controller agnostic, it can talk E1.31,
-DDP, DMX, Pixelnet, and Renard to hardware from multiple hardware vendors. Using various capes, FPP
-can also be a controller on P5 and P10 Matrixes, or strings of ws2811 pixels.
+Falcon Player vốn là một phần mềm quản lý và lập lịch phát sóng cho các thiết bị như đèn LED và hệ thống âm thanh, thường được sử dụng trong các màn trình diễn ánh sáng (light shows). **GOFPP** sẽ tập trung vào việc phát triển các tính năng cụ thể phục vụ cho việc điều khiển các **màn hình hiển thị thông minh**, giúp tự động hóa hoặc tối ưu hóa việc phát nội dung trên các màn hình này, có thể bao gồm bảng điện tử quảng cáo hoặc hệ thống thông báo.
 
-Useful Links:
+Nó cũng có thể liên quan đến việc phát triển thêm các chức năng mới cho hệ thống, cải thiện hiệu năng, hoặc tích hợp thêm với các nền tảng và dịch vụ khác để tăng cường tính ứng dụng của hệ thống hiển thị trong nhiều môi trường khác nhau như doanh nghiệp, thương mại, hoặc sự kiện.
 
-- [Documentation in Github](./docs/README.md)
-- [Falcon Player website](https://www.falconplayer.com)
-- [Falcon Christmas forums](http://falconchristmas.com/forum/)
-- [Falcon Player sub-forum](http://falconchristmas.com/forum/index.php/board,8.0.html)
-- [Wiki](http://falconchristmas.com/wiki/index.php/Main_Page)
+Dự án **GOADS** có thể đã có một mục tiêu lớn hơn là phát triển và ứng dụng công nghệ vào các giải pháp hiển thị và tự động hóa, với Falcon Player chỉ là một trong những công cụ để hiện thực hóa mục tiêu này.
+
+Bạn có muốn thêm chi tiết về cách hệ thống này vận hành hoặc về các phần khác của dự án không?
+
+# Hướng dẫn cài đặt
