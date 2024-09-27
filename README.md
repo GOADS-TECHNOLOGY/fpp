@@ -11,3 +11,10 @@ Dự án **GOADS** có thể đã có một mục tiêu lớn hơn là phát tri
 Bạn có muốn thêm chi tiết về cách hệ thống này vận hành hoặc về các phần khác của dự án không?
 
 # Hướng dẫn cài đặt
+Ưu tiên truy cập bằng quyền root
+```
+cd gofpp
+sudo cp SD/FPP_Install.sh /root
+cd /root
+./FPP_Install.sh 
+```
